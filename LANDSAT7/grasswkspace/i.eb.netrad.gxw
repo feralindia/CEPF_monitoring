@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE gxw SYSTEM "grass-gxw.dtd">
+<gxw>
+    <layer_manager dim="0,455,525,600">
+    </layer_manager>
+    <display name="Display 1" render="1" mode="0" showCompExtent="0" alignExtent="1" constrainRes="0" dim="675,0,1243,1062" extent="725556.771104,1014094.279742,964991.337173,1229102.258923,0.000000,1.000000" tbres="1.000000" viewMode="2d" >
+        <layer type="raster" name="azi@pet" checked="0" opacity="1.000000">
+            <task name="d.rast">
+                <parameter name="map">
+                    <value>azi@pet</value>
+                </parameter>
+            </task>
+        </layer>
+        <layer type="raster" name="doy@pet" checked="0" opacity="1.000000">
+            <task name="d.rast">
+                <parameter name="map">
+                    <value>doy@pet</value>
+                </parameter>
+            </task>
+        </layer>
+        <layer type="raster" name="tsw@pet" checked="0" opacity="1.000000">
+            <task name="d.rast">
+                <parameter name="map">
+                    <value>tsw@pet</value>
+                </parameter>
+            </task>
+        </layer>
+        <layer type="raster" name="emmis.LE71430531999306EDC01@pet" checked="0" opacity="1.000000">
+            <task name="d.rast">
+                <parameter name="map">
+                    <value>emmis.LE71430531999306EDC01@pet</value>
+                </parameter>
+            </task>
+        </layer>
+        <layer type="raster" name="toar.dos4.LE71430531999306EDC01_B6_VCID_1@l7corrected" checked="0" opacity="1.000000">
+            <task name="d.rast">
+                <parameter name="map">
+                    <value>toar.dos4.LE71430531999306EDC01_B6_VCID_1@l7corrected</value>
+                </parameter>
+            </task>
+        </layer>
+        <layer type="raster" name="toar.ndvi.LE71430531999306EDC01@ndvi" checked="0" opacity="1.000000">
+            <selected />
+            <task name="d.rast">
+                <parameter name="map">
+                    <value>toar.ndvi.LE71430531999306EDC01@ndvi</value>
+                </parameter>
+            </task>
+        </layer>
+        <layer type="raster" name="tir.LE71430531999306EDC01@pet" checked="0" opacity="1.000000">
+            <task name="d.rast">
+                <parameter name="map">
+                    <value>tir.LE71430531999306EDC01@pet</value>
+                </parameter>
+            </task>
+        </layer>
+        <layer type="raster" name="albedo.E71430531999_ond@pet" checked="0" opacity="1.000000">
+            <task name="d.rast">
+                <parameter name="map">
+                    <value>albedo.E71430531999_ond@pet</value>
+                </parameter>
+            </task>
+        </layer>
+        <layer type="raster" name="netrad.LE71430531999306EDC01@pet" checked="1" opacity="1.000000">
+            <task name="d.rast">
+                <parameter name="map">
+                    <value>netrad.LE71430531999306EDC01@pet</value>
+                </parameter>
+            </task>
+        </layer>
+    </display>
+</gxw>

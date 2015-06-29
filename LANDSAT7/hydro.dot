@@ -1,0 +1,56 @@
+//  digraph h {
+//	graph [dpi = 150]
+//	rankdir = TB;
+
+//	node [shape=parallelogram, style=filled, color=lightgrey] B3 B4 B61 DEM; // data
+//	node [shape=box, style=filled, color=slategrey]; // process
+//	NDVIcalc [label="r.mapcalc expression = \"ndvi=(B4-B3)/(B4+B3)\""];
+//	r_info [label="r.info -h -quiet, map=B3"];
+//	r_latlong [label="r.latlong -l --overwrite input='B3' \noutput='lat.E71430531999306EDC01'"];
+//	LSTcalc;
+//	LSTcorrectedcalc;
+	// node [shape=parallelogram, style=filled, color=lightblue]; NDVI LST LSTcorrected Latmap Longmap; // output
+	
+//	subgraph Metadataclust {
+//		"Acquired Date"-> "Acquired Time"->"Day of Year" ->"Local Time"-> "Azimuth"-> "Zenith";
+//		label = "Metadata";
+		
+//	}
+	
+//	subgraph Testclust {//
+//		One two three;
+//		label = "Test";
+//	}
+	
+//	{B3 B4} -> NDVIcalc -> NDVI;
+//	B3 -> r_latlong -> {Latmap Longmap};
+//	B3 -> r_info -> Metadata;
+	
+	
+//	Testclust -> Metadataclust;
+	
+//}
+
+
+digraph G {
+
+	subgraph cluster_0 {
+		style=filled;
+		color=lightgrey;
+		node [style=filled,color=white];
+		"Acquired Date" "Acquired Time""Day of Year" "Local Time" "Azimuth" "Zenith";
+		label = "Metadata";
+	}
+
+	subgraph cluster_1 {
+		node [style=filled];
+		one two three
+		label = "Test";
+		color=blue
+	}
+	start -> cluster_0;
+	start -> cluster_1 -> end;
+
+	start [shape=Mdiamond];
+	end [shape=Msquare];
+}

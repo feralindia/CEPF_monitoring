@@ -1,0 +1,11 @@
+## Flowchart describing the sequence to be used to extract SenSlopes
+digraph SS{
+	"Mount external disk" -> "Start GRASS70" -> "Start Emacs \nfrom within R" -> "Open Files";
+	{"ControlScript.R" "StackSlope2.R"} -> "Open Files";
+	{"Grassdata: /media/grassdat" -> "Location: wghats" -> "Mapset: ndvi"} -> "Start GRASS70";
+	
+
+
+
+}
+	

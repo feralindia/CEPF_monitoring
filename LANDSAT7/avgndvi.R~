@@ -1,0 +1,87 @@
+## Set mapset
+
+
+execGRASS("g.mapset", mapset='ndvi')
+
+avg.list$Year <- format(avg.list$Date, "%Y")
+grp <- subset(avg.list, select=c(Path, Row, Year)) ## select relevant columns trim date to year
+grp <- unique(grp)
+
+## execGRASS("r.mask",
+##           flags="overwrite",
+##           parameters=list(vector='wg_extent@PERMANENT')
+##           ) #add mask to stick to limits of WG
+## execGRASS("r.mask",flags="r") #remove mask for this operation seems to be causing problems
+
+## need to tweak the script so that it handles one region at a time while using the foreach packages- else GRASS will choke
+##foreach(i=1:nrow(grp), .packages='spgrass6') %dopar% { 
+for (i in 1: nrow(grp)){ # create loop to extract average NDVI
+    ## without gap fill
+    sb.grp <- subset(avg.list, subset=(Path==grp$Path[i] & Row==grp$Row[i] & Year==grp$Year[i]), select=ID)
+    sb.grp.id <- unique(sb.grp)
+    sb.grp <- paste("toar.ndvi.", sb.grp$ID, sep="")
+    avg.ndvi <-  paste("avg.toar.ndvi", sb.grp.id, sep="")
+    regmap <- execGRASS("g.list", flags = "e", parameters = list(type='raster', pattern=sb.grp.id$ID, exclude='(gf|avg)', mapset='ndvi'), intern=TRUE)
+    
+    execGRASS("g.region",
+              flags="p",
+              parameters=list(raster=regmap[1]))
+    if(length(sb.grp)>1) {
+        tmp.input <- str_c(regmap,collapse=",")
+        execGRASS("r.series",
+                  flags=c("z", "overwrite"),
+                  parameters=list(input=tmp.input, output=avg.ndvi, method='average'))
+    } else {
+        cpcmd <- paste(regmap, avg.ndvi, sep=",")
+        execGRASS("g.copy",
+                    flags="overwrite",
+                    parameters=list(raster=cpcmd))
+    }
+
+    ## repeat above with gap fill FROM HERE RUN ON MAPS YR>2003
+    
+    ## with gap fill
+    ##    sb.grp <- subset(img.list, subset=(Path==grp$Path[i] & Row==grp$Row[i] & Year==grp$Year[i]), select=ID)
+    gf.sb.grp <- paste("gf.", sb.grp, sep="")
+    ##gf.sb.grp <- subset(avg.list, subset=(Path==grp$Path[i] & Row==grp$Row[i] & Year==grp$Year[i]), select=ID)
+    
+    gf.avg.ndvi <-  paste("avg.gf.toar.ndvi.",sb.grp.id, sep="")
+    gf.regmap <- execGRASS("g.list", flags = "e", parameters = list(type='raster', pattern=gf.sb.grp[1], exclude='avg', mapset='ndvi'), intern=TRUE)
+    if(length(gf.regmap)>0){
+        
+        execGRASS("g.region", flags="p", parameters=list(raster=gf.regmap[1]))
+        if(length(gf.regmap>1)){
+            gf.tmp.input <- str_c(gf.regmap,collapse=",")
+            execGRASS("r.series",
+                      flags=c("z", "overwrite"),
+                      parameters=list(input=gf.tmp.input, output=gf.avg.ndvi, method='average'))
+            
+        } else {
+            cpcmd <- paste(gf.regmap, gf.avg.ndvi, sep=",")
+            execGRASS("g.copy",
+                      flags="overwrite",
+                      parameters=list(raster=cpcmd))
+        }
+    }
+}
+    
+##     ## from here
+##     if(length(gf.sb.grp)>1) {
+##         execGRASS("r.series",
+##                   flags=c("z", "overwrite"),
+##                   parameters=list(input=gf.tmp.input, output=gf.avg.ndvi, method='average'))
+##     } else {
+##         cpcmd <- paste(gf.sb.grp, gf.avg.ndvi, sep=",")
+##         execGRASS("g.copy",
+##                   flags="overwrite",
+##                   parameters=list(raster=cpcmd[1]))
+##     }
+## } else {
+##     cpcmd <- paste(sb.grp, gf.avg.ndvi, sep=",")
+##     execGRASS("g.copy",
+##               flags="overwrite",
+##               parameters=list(raster=cpcmd[1]))
+## }
+## }
+        
+    

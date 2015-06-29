@@ -1,0 +1,9 @@
+digraph CS{
+	"Load Libraries" -> "Load Functions" -> "Define Paths" -> "Check Images" -> "Select Images" -> "Landsat Correction" -> "NDVI" -> "Land Surface Temperature";
+	"Check Images" -> "Read Filenames" -> "Read Metadata" -> "Sort by R/P and Date" -> "Sort by Quality" -> "Write Report";
+	"Select Images" -> "Sort by Season" -> "Sort by SLC Error" -> "Report";
+	"Landsat Correction" -> "Top of Atmosphere Reflectances" -> "DOS 4 Normalisation" -> "Terrain Shadow Removal";
+	"NDVI" -> "Maximum NDVI" -> "Aggregated NDVI";
+	"Land Surface Temperature" -> "Aggregated LST";
+	
+	}

@@ -1,0 +1,34 @@
+library(raster)
+library(rgdal)
+library(mapplots)
+library(zyp)
+
+n1<-brick("ndvimasked.grd")
+#Generate a grid to extract values, we can write this as a function if required. 
+#Until we ensure that the script works lets leave it as is.
+byx = 10000
+byy = 10000
+xlim <- c(xmin(n1),xmax(n1))
+ylim <- c(ymin(n1),ymax(n1))
+grd <- make.grid(x,y,1, byx, byy, xlim, ylim)
+grd[is.na(grd)] <- 1
+write.grid(grd,"h25v08","shape")
+
+b<-readOGR(dsn="/home/srini/", layer="h25v08")
+
+## create dataframe to store the results for each ploygon
+res<-data.frame(matrix(ncol = 11, nrow = ncell(n1)))
+names(res) <- c("lbound","trend", "trendp","ubound","tau","sig","nruns","autocor","valid_frac","linear","intercept")
+## loop over polygons
+for (i in 1:length(b)) {
+  
+  ext <- as.data.frame(extract(n1,extent(i),cellnumbers=TRUE))
+  #uncomment to use the polygon itself and the multicore option
+  #ext<-as.data.frame(extract(n1,b@polygons[i],cellnumbers=T))
+  
+  trend <- zyp.trend.dataframe(ext,1,"zhang",conf.intervals=TRUE)
+  res<-rbind(res,trend)
+  return(res)
+}
+
+zyp.sen

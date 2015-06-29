@@ -1,0 +1,77 @@
+
+##--- Load Libs
+source("LoadLibs.R", echo=TRUE)
+library(zoo)
+library(raster)
+library(zyp)
+library(snow)
+source("LoadFuncts.R", echo=TRUE)
+
+##-- select images to work with
+execGRASS("g.mapset", mapset='tvdi')
+list.Blue <- execGRASS("g.list", type='raster', pattern="Blue.*",
+                       mapset='tvdi',  intern=TRUE)
+
+years.Blue <- substr(list.Blue, start=12, stop=15)
+years.Blue <- sort(unique(years.Blue))
+rc.Blue <- unique(substr(list.Blue, start=6, stop=11))
+for(i in 1:length(rc.Blue)){
+    sel.Blue <- subset(list.Blue, subset=rc.Blue[i]==substr(list.Blue, start=6, stop=11))
+    execGRASS("g.region", raster=sel.Blue[i], res='300')
+
+    ##--create brick of images
+    for(j in 1:length(sel.Blue)){
+        rst <- paste("rst",j, sep="")
+        assign(rst, raster(readRAST6(sel.Blue[j])))
+    }
+    rst.Blue <- paste("rst", 1:j, sep="")
+    brick.Blue <- brick(lapply(rst.Blue, get))
+    plot(brick.Blue)
+    
+    ## A wrapper function to derive sen's slope (layer 1)
+    ## and significant values (layer 2)
+    r.sen <- function(x, cores=6) {
+        require(parallel)
+        fit<-zyp.trend.vector(x, method="zhang",conf.intervals=T)
+        ## trendp<-fit[3]
+        ## pval<-fit[6]
+        return(cbind(fit[3], fit[6]))
+    }
+    ## Single core deriving a brick with the slopes and sig
+    ## tring to make this multicore
+    r3<-calc(brick.Blue, fun=function(x){
+        require(parallel)
+        res <- t(mclapply(x,1,FUN=r.sen, mc.cores=6))
+        return(res)}
+             )
+runtime <- system.time({
+            avg <- mean(unlist(mclapply(X=1:runs, FUN=onerun, mc.cores=cores)))
+        })[3]
+
+    
+    plot(r3)
+    
+    ## Run function using parallel processing
+    
+    ff <- function(x){
+        calc(x, r.sen)
+    }
+    
+    beginCluster(4)
+    cl <-getCluster()
+    ## THIS IS WHERE THE SCRIPT IS CHOKING
+    y2 <- clusterR(brick.Blue, fun = ff, export = "r.sen")
+   
+    endCluster()
+    plot(y2)
+
+
+
+
+    beginCluster(4)
+    cl <-getCluster()
+    y2 <- clusterR(brick.Blue, fun = r.sen, export = "r.sen")
+
+
+
+}

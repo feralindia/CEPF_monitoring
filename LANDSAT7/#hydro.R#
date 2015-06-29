@@ -1,0 +1,72 @@
+##----Script to calculate green (ET) and blue (surface/sub-surface) water using RS routines in GRASS7----##
+library(spgrass6)
+library(landsat)
+library(timeDate)
+
+### r.sun ## reqd by i.eb.netrad for: surface radiance (glob_rad) which is elevation corrected, 
+## use r.mapcalc and this <http://www.yale.edu/ceo/Documentation/Landsat_DN_to_Kelvin.pdf> for surface temperature calculations
+## also LANDSAT package can be used as per <http://www.hakimabdi.com/20111030/estimating-land-surface-temperature-from-landsat-thermal-imagery/>
+
+## base reference is here <http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/20090027884.pdf>
+execGRASS("g.mapset", parameters = list(mapset='pet'))
+execGRASS("g.region", parameters = list(rast='toar.dos4.LE71430531999306EDC01_B1@l7corrected'))
+execGRASS("i.albedo", flags=c('l','c', 'overwrite'),
+           parameters=list(input='toar.dos4.LE71430531999306EDC01_B1@l7corrected,toar.dos4.LE71430531999306EDC01_B2@l7corrected,toar.dos4.LE71430531999306EDC01_B3@l7corrected,toar.dos4.LE71430531999306EDC01_B4@l7corrected,toar.dos4.LE71430531999306EDC01_B5@l7corrected,toar.dos4.LE71430531999306EDC01_B7@l7corrected', output='albedo.E71430531999_ond')
+           ) ## requd by i.eb.netrad for: albedo
+
+### i.albedo -l --overwrite --verbose input=toar.dos4.LE71430531999306EDC01_B1@l7corrected,toar.dos4.LE71430531999306EDC01_B2@l7corrected,toar.dos4.LE71430531999306EDC01_B3@l7corrected,toar.dos4.LE71430531999306EDC01_B4@l7corrected,toar.dos4.LE71430531999306EDC01_B5@l7corrected,toar.dos4.LE71430531999306EDC01_B7@l7corrected output=albedo.E71430531999_ond
+
+tdobj <- as.timeDate("1999-11-06", zone="Asia/Calcutta")
+
+dayOfYear(tdobj)
+dayOfYear(x)
+
+## r.slope.aspect --overwrite elevation=ASTERdem@PERMANENT slope=ASTERslope aspect=ASTERaspect  ## only run once
+## r.shaded.relief --overwrite input=ASTERdem@PERMANENT output=ASTERshrel ## only run once
+
+## r.sun --overwrite elev_in=ASTERdem asp_in=ASTERaspect@terrain slope_in=ASTERslope@terrain albedo=albedo.E71430531999_ond@PERMANENT coef_bh=acca.LE71430531999306EDC01@l7corrected glob_rad=totalirradiance day=309
+
+execGRASS6("r.sun", flags=c("overwrite"),
+           parameters=list(elev_in='ASTERdem@terrain', asp_in='ASTERaspect@terrain'))
+
+execGRASS6("i.emissivity", flags=c("overwrite"),
+           parameters=list(input=ndvi, output=emmis)
+           ) ## define use input from lscorr and define emmis
+## i.emissivity --overwrite input=toar.ndvi.LE71430531999306EDC01@ndvi output=emmis.LE71430531999306EDC01@pet
+
+## the toar module does this automatically. Using dos4 corrected image
+## convert band 61 to radiances at sensor or 
+## expr <- "rad=((17.0 - 0.) / (255. - 1.))*(B61 - 1.) + 0."
+## execGRASS("r.mapcalc",
+##           flags="overwrite",
+##           expression=expr)
+## ## convert to kelvin
+## expr <- "tempk=1282.71 / log(666.09 / rad + 1.)"
+
+## execGRASS("r.mapcalc",
+##           flags="overwrite",
+##           expression=expr)
+
+
+## values to parameterise i.netrad
+## tsw=0.7, dtair or dT=5.0
+
+i.eb.soilheatflux  ## gives soil heat flux
+i.eb.h_sebal01  ## gives sensible heat flux (derivation of input parameters given in help file)
+
+i.eb.evapfr ## root zone soil moisture
+netrad ## input: net radiation raster map from r.sun and i.eb.netrad
+soilhf ## input: soil heat flux raster map from i.eb.soilheatflux
+senshf ## input: sensible heat flux raster map from  i.eb.h_sebal01
+evfrac ## output: evaporative fraction raster map
+
+
+i.eb.netrad ## gives net radiation, inputs: albedo, ndvi,
+albedo ## input:
+ndvi ## input - already calculated
+tempk ## input surface temperature from mapcalc as in Chander 1999
+time ## input from raster metadata
+dtair ## input: to be calculated emissivity ## input, from Chander 1999
+tsw ## input transmissivity
+doy ## name of day of year
+sunzangle ## sun zenith angle map from header??

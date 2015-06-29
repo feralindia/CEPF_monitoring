@@ -1,0 +1,7 @@
+ndvi.list <- paste("gf.toar.ndvi.", imglist$imgid, sep="")
+npp.list <- paste("gf.toar.nsr.", imglist$imgid, sep="")
+    ndvi.id <- substrRight(ndvi.list, 21)
+    npp.id <- substrRight(npp.list, 21)
+for(i in 1:length(imglist$imgid)){
+    if(ndvi.id[i]==npp.id[i]){
+        

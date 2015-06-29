@@ -1,0 +1,194 @@
+## Script to do various forms of correction for images using existing GRASS libraries
+## Import all files in a LS folder, needs to be put into a loop
+## lsdatadir <- "/maps/LANDSAT/WGhats/143_53/"  ##  "/home/udumbu/rsb/tmp/" ## 
+## dirlst <- dir(path=lsdatadir, pattern = "LE7*")
+## Get file names and directory from the selimgs.R
+dirlist <- paste("/maps2/western_ghats/", img.list$Path, "_",  img.list$Row,"/",img.list$ID, sep="")
+## Ensure mapset is correct
+execGRASS("g.mapset",
+          parameters=list(mapset='PERMANENT'))
+## create new dataframe to hold image name and date
+## <http://stackoverflow.com/questions/3642535/creating-an-r-dataframe-row-by-row>
+##img.dts<- data.frame(scene=rep(NA, length(dirlist)), date=rep("", length(dirlist),
+##                 stringsAsFactors=FALSE))   
+img.dts <- data.frame(scene=character(0), date=character(0), stringsAsFactors=FALSE)
+##for (i in 1: length(dirlist)){ ##uncomment to make it run through all directories.
+foreach(i=1:length(dirlist), .packages='spgrass6') %dopar% {
+    imgdir <- paste(dirlist[i], "/", sep="") 
+    imgflst <- list.files(imgdir, pattern="*.TIF$")
+    metfl <- list.files(imgdir, full.names=TRUE, pattern="*MTL.txt")
+    ## use pallelization here as it is the same path row
+    for (j in 1:length(imgflst)){  ## replaced by foreach command
+        imgflnme <-  c(paste("B", 1:5, sep=""), "B61", "B62", paste("B", 7:8, sep=""))
+        execGRASS("r.in.gdal",
+                  flags=c("o", "e", "overwrite"),
+                  parameters=list(input=paste(imgdir, imgflst[j], sep=""),
+                      output=imgflnme[j]))
+    }
+    ## Set region to imported map
+    execGRASS("g.region",
+              flags="p",
+              parameters=list(rast='B1', res='30')) ## res only for testing
+    ## Top of atmosphere correction
+    ## Script insists on all bands but we only need b3 and b4 for NDVI and
+    ## 2, 3, 4, 5, and 6 (61 in LS7) for cloud assessment so create 0 value maps for others
+    rmbands <- imgflnme[c(-2,-3,-4,-5,-6)] # get list of files to set to 0 to save processing time
+    ## Loop to set the unwanted files to 0 value rasters
+    for (k in 1:length(rmbands)){
+        expr <- paste(rmbands[k], "=",rmbands[k],"*0", sep="")
+        execGRASS("r.mapcalc",
+                  flags="overwrite",
+                  expression=expr)
+    }
+
+    ##  Needs to be run with the -r flag for DN values (radiances).
+    ## note cloud removal which requires reflectance not radiance (without -r flag).
+    ## also note we are using radiance at surface not at sensor with dark object subtraction - dos4
+    execGRASS("i.landsat.toar",
+              flags=c("overwrite"),
+              parameters=list(input_prefix='B', output_prefix='toar.rad.B', metfile=metfl, sensor='tm7'))
+    execGRASS("i.landsat.toar",
+              flags=c("overwrite", "r"),
+              parameters=list(input_prefix='B', output_prefix='toar.DN.B', metfile=metfl, sensor='tm7', method='dos4'))
+    dt <- execGRASS("i.landsat.toar",
+                    flags=c("overwrite", "p"),
+                    parameters=list(input_prefix='B', output_prefix='toar.DN.B', metfile=metfl, sensor='tm7', 
+                        lsatmet='date'), intern=TRUE)
+    img <- substrLeft(imgdir, 1)
+    dts <- substrRight(dt, 10)
+    img.dts[i, ] <- c(img,dts)
+    ## remove unwanted rasters
+    rmtoarbands <- paste("toar.", rmbands, sep="") ## check this out
+    rmrast <- c(rmbands, rmtoarbands)
+    execGRASS("g.mremove",
+              flags=c("f"),
+              parameters=list(rast=rmrast))
+    ## Cloud cover assessment
+    execGRASS("i.landsat.acca",
+              flags=c("f", "s", "overwrite"),
+              parameters=list(input_prefix='toar.rad.B', output='acca.B'))
+    ## rename the desired outputs to the correct name and move them to the correct mapset
+    execGRASS("g.mapset",
+              flags="c",
+              parameters=list(mapset='l7corrected'))
+    bnd3 <- substrLeft(imgflst[3], 4)
+    bnd4 <- substrLeft(imgflst[4], 4)
+    bnd5 <- substrLeft(imgflst[5], 4)
+    acca.bnd <- substrLeft(imgflst[1], 7)
+    toar.B3 <- paste("toar.DN.", bnd3, sep="")
+    toar.B4 <- paste("toar.DN.", bnd4, sep="")
+    toar.B5 <- paste("toar.DN.", bnd5, sep="")
+    acca <- paste("acca.", acca.bnd, sep="")
+    cpB3 <- paste("toar.DN.B3@PERMANENT", toar.B3, sep=",") # chaged to reflectance (DN) image
+    cpB4 <- paste("toar.DN.B4@PERMANENT", toar.B4, sep=",")
+    cpB5 <- paste("toar.DN.B5@PERMANENT", toar.B5, sep=",")
+    cpacca <- paste("acca.B@PERMANENT", acca, sep=",") # radiance based image
+    ## can write a function for copying files and lapply
+    ## cp.files <- function(x){
+    ## execGRASS("g.copy",
+    ##          flags="overwrite",
+    ##          parameters=list(rast=x))
+    ##}
+    ## rasts<-c("cpB3", "cpB4", "cpB5", "cpacca")
+    ## lapply(rasts, cp.files)
+    execGRASS("g.copy",
+              flags="overwrite",
+              parameters=list(rast=cpB3))
+    execGRASS("g.copy",
+              flags="overwrite",
+              parameters=list(rast=cpB4))
+    execGRASS("g.copy",
+              flags="overwrite",
+              parameters=list(rast=cpB5))
+    execGRASS("g.copy",
+              flags="overwrite",
+              parameters=list(rast=cpacca))
+    
+
+    ##--------------- run gdal_fillnodata.py to de-stripe -------------
+    ## should be done after top of atmosphere correction
+    
+    ##  gapmaskdir <- paste(dirlist[i], "/gap_mask", sep="") 
+    ##     valmask.B3 <- list.files(gapmaskdir, full.names=TRUE, pattern="*B3.TIF.gz")
+    ##     GM.B3 <- substrLeft(valmask.B3, 3)
+    ##     gunzip(valmask.B3, destname=GM.B3)
+    ##     valmask.B4 <- list.files(gapmaskdir, full.names=TRUE, pattern="*B4.TIF.gz")
+    ##     GM.B4 <- substrLeft(valmask.B4, 3)
+    ##     gunzip(valmask.B3, destname=GM.B4)
+    ##     tmp.B3 <- "/home/pambu/rsb/tmp/gapfill/B3.tif"
+    ##     tmp.B4 <- "/home/pambu/rsb/tmp/gapfill/B4.tif"
+    ##     gf.B3 <- "/home/pambu/rsb/tmp/gapfill/gfB3.tif"
+    ##     gf.B4 <- "/home/pambu/rsb/tmp/gapfill/gfB4.tif"
+    ##     execGRASS("r.out.gdal",
+    ##               flags="overwrite",
+    ##               parameters=list(input=toar.B3, output=tmp.B3, format='GTiff', type='Int16')
+    ##               ) 
+    ##     execGRASS("r.out.gdal",
+    ##               flags="overwrite",
+    ##               parameters=list(input=toar.B4, output=tmp.B4, format='GTiff', type='Int16')
+    ##               ) # export bands 3 and 4
+
+    ##     cmd.B3 <- paste("gdal_fillnodata.py -md 14 -mask ", valmask.B3, " -of GTiff ", tmp.B3, gf.B3, sep="")
+    ##     system(cmd.B3)
+    ##     cmd.B4 <- paste("gdal_fillnodata.py -md 14 -mask ", valmask.B4, " -of GTiff ", tmp.B4, gf.B4, sep="")
+    ##     system(cmd.B4)
+    ##    ## gdal_fillnodata.py -md 17 -mask /home/udumbu/rsb/tmp/LE71430532013072PFS00_GM_B4.TIF -of GTiff /home/udumbu/rsb/tmp/inrst /home/udumbu/rsb/tmp/outrst
+    ## ## r.in.gdal -o --overwrite input=gfB3 output=gfB3
+    ## execGRASS("r.in.gdal",
+    ##           flags=c("o", "overwrite"),
+    ##           parameters=list(input=gf.B3, output='toar.gf.B3')
+    ##           )
+    ## execGRASS("r.in.gdal",
+    ##           flags=c("o", "overwrite"),
+    ##           parameters=list(input=gf.B4, output='toar.gf.B4')
+    ##           )
+    
+    ##--------------- run NDVIs and save to new mapset ---------------
+    ## first create an inverse mask from the cloud layer
+    ## I'll use all the categories of clouds and shadows
+    execGRASS("g.mapset",
+              parameters=list(mapset='PERMANENT'))
+    execGRASS("r.mask",
+              flags=c("i", "overwrite"),
+              parameters=list(raster='acca.B'))
+
+    ## generate the ndvi for the corrected and uncorrected image
+    ## expr <- "ndvi=1.0*(B4-B3)/(B4+B3)"
+    ## execGRASS("r.mapcalc",
+    ##           flags="overwrite",
+    ##           expression=expr)
+    expr <- "toar.ndvi=1.0*(toar.DN.B4-toar.DN.B3)/(toar.DN.B4+toar.DN.B3)"
+    execGRASS("r.mapcalc",
+              flags="overwrite",
+              expression=expr)
+    ## move to the relevant mapset
+    execGRASS("g.mapset",
+              flags="c",
+              parameters=list(mapset='ndvi'))
+    ## copy the relevant files to the correct names
+    ndvi.bnd <- paste("ndvi.", substrLeft(imgflst[1], 7), sep="")
+    toar.ndvi.bnd <- paste("toar.ndvi.", substrLeft(imgflst[1], 7), sep="")
+    cpndvi <- paste("ndvi", ndvi.bnd, sep=",")
+    cptoarndvi <- paste("toar.ndvi", toar.ndvi.bnd, sep=",")
+    execGRASS("g.copy",
+              flags="overwrite",
+              parameters=list(rast=cpndvi))
+
+    execGRASS("g.copy",
+              flags="overwrite",
+              parameters=list(rast=cptoarndvi))
+    ## Clear up permanent mapset
+    execGRASS("g.mapset",
+              parameters=list(mapset='PERMANENT'))
+    ## remove the mask
+    execGRASS("r.mask",
+              flags="r")
+    ## remove all maps
+    execGRASS("g.mremove",
+              flags="f",
+              parameters=list(rast='*'))
+    
+}
+
+
+

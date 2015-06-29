@@ -1,0 +1,31 @@
+
+##select and locate one of the hdf files in the folder##
+INPUT_FILENAME = /media/backup2/MOD16_ET/h24v07/MOD16A2.A2013M12.h24v07.105.2014121071236.hdf 
+
+##Select the bands of interest.Here, first band which corresponds to monthly Evapotranspiration is selected by giving value 1##
+SPECTRAL_SUBSET = ( 1 0 0 0 ) 
+
+SPATIAL_SUBSET_TYPE = INPUT_LAT_LONG
+
+##You can define the extract extent here## 
+SPATIAL_SUBSET_UL_CORNER = ( 10.1 76.0 ) 
+SPATIAL_SUBSET_LR_CORNER = ( 7.7 78.3 ) 
+
+###Output file destination. Layer will be automatically named as filename.tif (-MOD16A2.A2013M12.h24v07.105.2014121071236.tif,...)## 
+OUTPUT_FILENAME = /media/backup2/MOD16_ET/h24v07/test.tif 
+
+RESAMPLING_TYPE = NEAREST_NEIGHBOR
+
+##Out put projection defined here is UTM 43 N.Change as required##
+OUTPUT_PROJECTION_TYPE = UTM
+
+OUTPUT_PROJECTION_PARAMETERS = ( 
+ 0.0 0.0 0.0
+ 0.0 0.0 0.0
+ 0.0 0.0 0.0
+ 0.0 0.0 0.0
+ 0.0 0.0 0.0 )
+
+DATUM = WGS84
+
+UTM_ZONE = 43

@@ -1,0 +1,13 @@
+tas.list$Year <- format(tas.list$Date, "%Y")
+grp <- subset(tas.list, select=c(Path, Row, Year)) ## select relevant columns trim date to year
+grp <- unique(grp)
+
+execGRASS("g.mapset", parameters=list(mapset='pet'))
+
+for (i in 1: nrow(grp)){ # create loop to extract maximum temperature at sensor
+    ## without gap fill
+    sb.grp <- subset(tas.list, subset=(Path==grp$Path[i] & Row==grp$Row[i] & Year==grp$Year[i]), select=ID)
+    sb.grp.id <- unique(sb.grp)
+    sb.grp <- paste("toar.ndvi.", sb.grp$ID, sep="")
+    tas. <-  paste("tas.toar", sb.grp.id, sep="")
+    regmap <- execGRASS("g.list", flags = "e", parameters = list(type='raster', pattern=sb.grp.id$ID, exclude='(gf|tas)', mapset='pet'), intern=TRUE)

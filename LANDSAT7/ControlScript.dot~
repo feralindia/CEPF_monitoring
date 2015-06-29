@@ -1,0 +1,3 @@
+digraph CS{
+	"Load Libraries" -> "Load Functions" -> "Define Paths" -> "Check Images" -> "Select Images" -> "Landsat Correction" -> "Maximum NDVI" -> "Average NDVI" -> "Land Surface Temperature";
+	}

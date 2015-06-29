@@ -1,0 +1,151 @@
+## Limitations:
+## Gathers maxima of LST from image extent
+## not based on any specific region or ecological consideration
+
+
+## load libs
+library(spgrass6)
+library(raster)
+library(reshape2)
+
+substrRight <- function(x, n){
+    substr(x, nchar(x)-n+1, nchar(x))}
+
+## modified may 2015 to run on the media NDVI and LST values
+## list input images
+## lst.list <- execGRASS("g.list", type='raster', pattern='lst.*', exclude='*cel*', mapset='pet', intern=TRUE)
+
+lst.list <- execGRASS("g.list", type='raster', pattern='avg.gf.lst.*', exclude='*cel*', mapset='pet', intern=TRUE)## pattern='avg.gf.lst.*' changed to use files without gapfilling
+### HERE - MAY CONSIDER RE-RUNNING WITH TOAR NDVI
+## ndvi.list <- execGRASS("g.list", type='raster', pattern='ndvi.*', mapset='ndvi', intern=TRUE)
+ndvi.list <- execGRASS("g.list", type='raster', pattern='avg.gf.toar.ndvi*', mapset='ndvi', intern=TRUE) ## pattern='avg.gf.toar.ndvi.*'  Changed to use with gapfilling
+lst.id <- substrRight(lst.list, 13) ## from 21 to 13 for avg
+ndvi.id <- substrRight(ndvi.list, 13) ## from 21 to 13 for avg
+## lst.id <- substr(lst.list, start=11, stop=31) ## for dos4 thermal bands
+## lst.id <- substrRight(lst.list, 21) ## from 21 to 13
+## ndvi.id <- substrRight(ndvi.list, 21) ## from 21 to 13
+ndvi.list <- ndvi.list[ndvi.id %in% lst.id]
+## filter by year
+##img.yr <- c(1999:2013)
+img.yr <- c(1999:2013) ## :2013) ## covering SLC on years
+slp.int.csv <- "/home/pambu/rsb/OngoingProjects/CEPF_monitoring/rdata/results/tvdi/slp.int.csv"
+
+for (i in 1:length(img.yr)){
+## i <- 1
+## Need to do this one year at a time. Years to be done include:
+## 2000, 2001, 2002, 2004, 2005, 2006, 2007.....
+## define file names
+lm.df.csv <- paste("/home/pambu/rsb/OngoingProjects/CEPF_monitoring/rdata/results/tvdi/yr_lm_", img.yr[i], ".csv", sep="")
+
+## identify images
+ndvi.yr <- ndvi.list[grep(pattern=img.yr[i], ndvi.list)]
+lst.yr <- lst.list[grep(pattern=img.yr[i], lst.list)]
+
+lst.yr.id <- substrRight(lst.yr, 13) ## from 21 to 13
+ndvi.yr.id <- substrRight(ndvi.yr, 13) ## from 21 to 13
+##    lst.yr.id <- substrRight(lst.yr, 21) ## from 21 to 13
+##    ndvi.yr.id <- substrRight(ndvi.yr, 21) ## from 21 to 13
+## lst.yr.id <- substr(lst.yr, start=11, stop=31) ## for dos4 thermal bands
+## Check to see if ndvi and lst files match
+lst.yr <- lst.yr[lst.yr.id %in% ndvi.yr.id]
+ndvi.yr <- ndvi.yr[ndvi.yr.id %in% lst.id]
+## create df to hold a and b for each year
+slp.int <- as.data.frame(matrix(nrow=0, ncol=7))
+names(slp.int) <- c("year","a","b", "Tabsmin", "Tmeanmin", "Tmedianmin", "nImgs")
+## create df to hold lst and ndvi values for each year
+lst.ndvi.df <- as.data.frame(matrix(nrow=0, ncol=8))
+names(lst.ndvi.df) <- c("ndvi","max_lst", "min_lst", "lstimg","absmin_lst", "meanmin_lst", "medianmin_lst", "img_no")
+no.imgs <- nrow(as.data.frame(lst.yr))
+## mask <- raster(readRAST6("MASK@pet", ignore.stderr=TRUE))
+## mask.ext <- extent(mask)
+if(no.imgs > 0){
+    for(j in 1:length(lst.yr)){
+        ## lst.lyr <-  paste(lst.yr[j], "@pet", sep="")
+        lst.lyr <-  paste(lst.yr[j], "@pet", sep="")
+        ndvi.lyr <-  paste(ndvi.yr[j], "@ndvi", sep="")
+        reg.lst <- execGRASS("g.region", flags="p", raster=lst.lyr, res='30', intern=T)
+        reg.ndvi <- execGRASS("g.region", flags="p", raster=ndvi.lyr, res='30', intern=T)
+        ## ensure the no of cells is reasonable
+        ncell.ndvi <- as.numeric(gsub("[^0-9]", "", reg.ndvi[13]))
+        ncell.lst <- as.numeric(gsub("[^0-9]", "", reg.lst[13]))
+        if(ncell.ndvi<75000000 & ncell.lst <75000000 & ncell.ndvi==ncell.lst){
+            execGRASS("g.region",  raster=lst.lyr, res='30')
+            lst.in <- raster(readRAST6(lst.lyr, ignore.stderr=TRUE))
+            lst.ext<-extent(lst.in)
+            execGRASS("g.region", raster=ndvi.lyr, res='30')
+            ndvi.in <- raster(readRAST6(ndvi.lyr, ignore.stderr=TRUE))
+            ndvi.ext <- extent(ndvi.in)
+            if(lst.ext==ndvi.ext & !is.na(maxValue(lst.in))  & !is.na(maxValue(ndvi.in)>0)){
+                lst.ndvi.br <- brick(c(lst.in, ndvi.in))
+                rm(lst.in)
+                rm(ndvi.in)
+                ## ndvi.lst.df<-as.data.frame(brick.ndvi.lst)
+                tmp <-extract(lst.ndvi.br, lst.ext, df=T)
+                tmp <- tmp[complete.cases(tmp),]
+                colnames(tmp)<-c("lst","ndvi")
+                tmp$lst <- round(tmp$lst, digits=3)
+                tmp$ndvi <- round(tmp$ndvi, digits=2)
+                tmp <- subset(tmp, subset=ndvi>0 & ndvi<0.9) ## <http://www.ospo.noaa.gov/Products/land/mgvi/NDVI.html>& ndvi<0.703
+                tmp <- unique(tmp)
+                tmp$lstc <- tmp$lst-273
+                tmp <- subset(tmp, subset=lstc>0)
+                summary(tmp$lstc)
+                plot.png <- paste("../results/tvdi/Scatterplot_raw_NoGF_",lst.yr.id[j], ".png", sep="") ## this needs to be fixed
+                png(filename=plot.png)
+                plot(tmp$ndvi, tmp$lstc)
+                dev.off()
+                print(paste("Finished bricking and plotting rasters ", j, " of ", length(lst.yr), ": ", lst.lyr, " and ", ndvi.lyr, sep=""))
+                
+                ## clean data by rounding ndvi to two digits and removing cloud temperatures
+                ## first get quantiles for 5% assuming values below that are junk
+                ## quantile(tmp$lst, probs=c(0.0, 0.0001,0.00025,0.005, 0.01,0.05))
+                ## plot(quantile(tmp$lst, probs=seq(0.0001, 0.1, by=0.0001)))
+                ## tmp <- subset(tmp, subset=lst>=280 & ndvi>0)
+                
+                
+                tmp$ndvi <- round(tmp$ndvi, digits=2)
+                tmp$lst <- round(tmp$lst, digits=3)
+                tmp.m<-melt(tmp,id.vars="ndvi", measure.vars="lst",na.rm=T, variable.name="var")
+                tmp.df.max<-dcast(tmp.m, ndvi~var, fun.aggregate=max)
+                names(tmp.df.max)[2] <- "max_lst"
+                tmp.df.min<-dcast(tmp.m, ndvi~var, fun.aggregate=min)
+                names(tmp.df.min)[2] <- "min_lst"
+                tmp.df <- merge(tmp.df.max, tmp.df.min, all=TRUE) ## check FROM HERE
+                tmp.df$lstimg <- lst.lyr
+                tmp.df$absmin_lst<- min(tmp$lst) ## check this
+                tmp.df$meanmin_lst <- mean(tmp.df$min_lst)
+                tmp.df$medianmin_lst <- median(tmp.df$min_lst)
+                tmp.df$img_no <- j
+                lst.ndvi.df <- rbind(tmp.df, lst.ndvi.df)
+                
+            }
+        }
+    }
+}
+
+lst.ndvi.df <- lst.ndvi.df[complete.cases(lst.ndvi.df),]
+if(nrow(lst.ndvi.df)>1){
+    write.csv(lst.ndvi.df, lm.df.csv)
+    res.lm <- lm(max_lst~ndvi, data=lst.ndvi.df)
+    ## sum.lm <- summary(lm(lst~ndvi, data=lst.ndvi.df))
+    a <- coef(res.lm)[1] ## intercept
+    b <- coef(res.lm)[2] ## slope
+    ## Tmin <- min(tmp.df$lst) ## this is wrong Tmin is for entire image not min of Tmax
+    Tabsmin <- min(tmp.df$absmin_lst)
+    Tmeanmin <- min(tmp.df$meanmin_lst)
+    Tmedianmin <- min(tmp.df$medianmin_lst)
+    nImgs <- j
+    ## slp.int[i,] <- c(img.yr[i], a, b, Tmin, nImgs)
+    lst.tmpres <- as.numeric(c(img.yr[i], a, b, Tabsmin, Tmeanmin, Tmedianmin, nImgs))
+    slp.int <- rbind(lst.tmpres, slp.int)
+}
+write.table(slp.int, slp.int.csv, row.names=FALSE, col.names=FALSE, sep=",", append=TRUE)
+## ndvi.lst.df<-as.data.frame(extract(brick.ndvi.lst, ext))
+## ndvi.lst.df<-extract(as.data.frame(brick.ndvi.lst))
+## extract(brick.ndvi.lst)
+}
+
+
+
+
+

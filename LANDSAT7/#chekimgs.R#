@@ -1,0 +1,62 @@
+##-------------------- create list of complete images ---------------##
+wd <- "./"
+## wd <- "/home/udumbu/rsb/OngoingProjects/CEPF_monitoring/rdata/LANDSAT7/"  # running in pambu
+setwd(wd)
+ls.file <- paste(wd, "folderlist/LSlist_Auto.csv", sep="") # removed missing files/folders
+## error.file <- paste(wd, "folderlist/errors.csv", sep="") # removed missing files/folders
+## LS.list <- read.csv(file=ls.file, strip.white=TRUE, sep=",")
+img.df <- data.frame(Path=numeric(0), Row=numeric(0), ID=character(0),Date=numeric(0), Craft=character(0), Sensor=character(0), Type=character(0), CloudCover=numeric(0), Quality=numeric(0),stringsAsFactors=FALSE)
+
+## ----- identify folders with missing images and data
+error.file <- paste(wd, "folderlist/errors.csv", sep="") # removed missing files/folders
+error.dir <- "/maps2/Errors/" ## /maps2/Errors/" # removed missing files/folders
+unlink(error.file) # remove error.csv file to avoid appending endlessly
+mapdir <- "/maps2/western_ghats/"
+dir.name <- list.dirs("/maps2/western_ghats", recursive=FALSE, full.names=FALSE)
+dir.full.name <- list.dirs("/maps2/western_ghats", recursive=FALSE)
+## ---- move all folders with missing images to errors directory
+## ---- only works on Linux/UNIX boxes
+for (i in 1:length(dir.name)){
+    subdir.name <- paste(dir.name[i], sep="")
+    subdir.full.name <- paste(dir.full.name[i], sep="")
+    subsubdir.name <- list.dirs(subdir.full.name, full.names=FALSE,recursive=FALSE)
+    subsubdir.full.name <- list.dirs(subdir.full.name, full.names=TRUE, recursive=FALSE)
+    for (j in 1:length(subsubdir.name)){
+        file.numbers <- length(list.files(subsubdir.full.name[j], recursive=FALSE))
+        to.paste <- paste(subdir.name, subsubdir.full.name[j], file.numbers, sep=", ")
+##        error.folder <- paste(error.dir, subdir.name,"/", subsubdir.name[j], sep="") ##  
+        sys.cmd <- paste ("rsync -a ", subsubdir.full.name[j], error.dir, sep=" ") ## replace error.folder with error.dir
+        if (file.numbers<12){
+            system(sys.cmd)
+            write.table(to.paste, file=error.file, row.names=FALSE, col.names=FALSE, append=TRUE)
+        } else {
+        ### extract metadata
+            mtl.file <- list.files(subsubdir.full.name[j],full.names=TRUE, pattern="MTL")
+            mtl.numlines <- countLines(mtl.file)
+            if (mtl.numlines>100){
+                mtl.df <- read.delim(mtl.file, sep = '=', stringsAsFactors = FALSE, strip.white = TRUE)
+                ##---- pull in the parameters
+                mtl.path <- mtl.df[grep("^WRS_PATH$", mtl.df$GROUP),][, 2]
+                mtl.row <- mtl.df[grep("^WRS_ROW$", mtl.df$GROUP),][, 2]
+                mtl.id <- mtl.df[grep("LANDSAT_SCENE_ID", mtl.df$GROUP),][, 2]
+                mtl.date <- as.Date(mtl.df[grep("DATE_ACQUIRED", mtl.df$GROUP),][, 2])
+                ##            mtl.time <- as.Date(mtl.df[grep("SCENE_CENTER_TIME", mtl.df$GROUP),][, 2])  To be added for hydro layers
+                mtl.spacecraft <- mtl.df[grep("SPACECRAFT_ID", mtl.df$GROUP),][, 2]
+                mtl.sensor <- mtl.df[grep("SENSOR_ID", mtl.df$GROUP),][, 2]
+                mtl.type <- mtl.df[grep("^DATA_TYPE$", mtl.df$GROUP),][, 2]
+                mtl.cc <- mtl.df[grep("CLOUD_COVER", mtl.df$GROUP),][, 2]
+                mtl.quality <- mtl.df[grep("IMAGE_QUALITY", mtl.df$GROUP),][, 2]
+                img.dat <- c(mtl.path, mtl.row, mtl.id, mtl.date, mtl.spacecraft, mtl.sensor, mtl.type, mtl.cc, mtl.quality)
+                rows <- nrow(img.df)
+                img.df[rows+1,] <- img.dat
+            } else {
+                system(sys.cmd)
+            }
+        }
+    }
+}
+### ----- remove existing files from list
+## comp.maps <- execGRASS("g.mlist", parameters=list(type='rast', pattern='ndvi.*', mapset='ndvi'), intern=TRUE)
+## comp.maps <- substr(comp.maps, start=6, stop=200)
+## img.df <- subset(img.df,!(img.df$ID %in% comp.maps))
+write.csv(img.df, file=ls.file)
